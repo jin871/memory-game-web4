@@ -57,8 +57,8 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-　　let lastAIsTurn = -1;
-　　let aiPlaying = false;
+let lastAIsTurn = -1;
+let aiPlaying = false;
 
 
     const firebaseConfig = {
@@ -292,8 +292,8 @@ async function aiPlay(state) {
       scores: state.scores,
       flippedIndices: []
     });
-  }, 1000);
-}
+  } 1000;
+
 
     startGame();
   </script>
