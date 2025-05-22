@@ -87,12 +87,15 @@
         localPlayerIndex = parseInt(prompt("あなたのプレイヤー番号（0〜3）を入力"));
         if (isNaN(localPlayerIndex) || localPlayerIndex < 0 || localPlayerIndex >= totalPlayers) localPlayerIndex = 0;
 
+        playerNames = [];
         for (let i = 0; i < totalPlayers; i++) {
-          playerNames[i] = prompt(`プレイヤー${i}の名前を入力してください`) || `プレイヤー${i}`;
-        }
-        for (let i = playerNames.length; i < totalPlayers; i++) {
-          playerNames[i] = `AI${i}`;
-          aiPlayers.push(i);
+          const name = prompt(`プレイヤー${i}の名前を入力してください（空欄はAI）`);
+          if (name && name.trim()) {
+            playerNames[i] = name.trim();
+          } else {
+            playerNames[i] = `AI${i}`;
+            aiPlayers.push(i);
+          }
         }
 
         roomRef = ref(db, `rooms/${roomId}`);
@@ -100,6 +103,10 @@
 
       } else if (mode === "2") {
         roomId = prompt("参加したいルームIDを入力してください（例: room_xxxxx）");
+        if (!roomId) {
+          alert("ルームIDを入力してください");
+          return;
+        }
         roomRef = ref(db, `rooms/${roomId}`);
         const snapshot = await get(roomRef);
         if (!snapshot.exists()) {
@@ -110,7 +117,12 @@
         document.getElementById("roomDisplay").textContent = `参加中: ${roomId}`;
         playerNames = state.playerNames || [];
         aiPlayers.length = 0;
-        for (let i = playerNames.length; i < totalPlayers; i++) aiPlayers.push(i);
+        for (let i = 0; i < totalPlayers; i++) {
+          if (!playerNames[i]) {
+            playerNames[i] = `AI${i}`;
+            aiPlayers.push(i);
+          }
+        }
 
         localPlayerIndex = parseInt(prompt("あなたのプレイヤー番号（0〜3）を入力"));
         if (isNaN(localPlayerIndex) || localPlayerIndex < 0 || localPlayerIndex >= totalPlayers) localPlayerIndex = 0;
@@ -240,16 +252,26 @@
         choice1 = i1;
         choice2 = i2;
       } else {
-        const candidates = state.cards.map((_, i) => i).filter(i => !state.cards[i].flipped && !state.cards[i].matched);
-        shuffle(candidates);
-        [choice1, choice2] = candidates.slice(0, 2);
+        const unflipped = state.cards
+          .map((c, i) => (!c.flipped && !c.matched ? i : -1))
+          .filter(i => i >= 0);
+        shuffle(unflipped);
+        choice1 = unflipped[0];
+        choice2 = unflipped[1];
       }
 
-      setTimeout(() => handleCardClick(choice1, state), 500);
-      setTimeout(() => handleCardClick(choice2, state), 1500);
+      setTimeout(() => {
+        if (choice1 !== undefined) handleCardClick(choice1, state);
+      }, 1500);
+
+      setTimeout(() => {
+        if (choice2 !== undefined) handleCardClick(choice2, state);
+      }, 3000);
     }
 
-    startGame();
+    window.addEventListener("DOMContentLoaded", () => {
+      startGame();
+    });
   </script>
 </body>
 </html>
