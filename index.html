@@ -244,14 +244,16 @@
         }, 1000);
       }
     }
+      
 async function aiPlay(state) {
-  const candidates = state.cards.map((c, i) => (!c.flipped && !c.matched ? i : null)).filter(i => i !== null);
+  const candidates = state.cards
+    .map((c, i) => (!c.flipped && !c.matched ? i : null))
+    .filter(i => i !== null);
   if (candidates.length < 2) return;
 
   shuffle(candidates);
   const [c1, c2] = candidates;
 
-  // 1. 2枚めくる
   const newCards = [...state.cards];
   newCards[c1].flipped = true;
   newCards[c2].flipped = true;
@@ -261,19 +263,28 @@ async function aiPlay(state) {
     flippedIndices: [c1, c2]
   });
 
-  // 2. 1秒待ってマッチ判定
-  setTimeout(async () => {
-    const match = newCards[c1].num === newCards[c2].num;
+  // 1秒待つ
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
-    if (match) {
-      newCards[c1].matched = true;
-      newCards[c2].matched = true;
-      state.scores[state.currentPlayer]++;
-    } else {
-      newCards[c1].flipped = false;
-      newCards[c2].flipped = false;
-      state.currentPlayer = (state.currentPlayer + 1) % totalPlayers;
-    }
+  const match = newCards[c1].num === newCards[c2].num;
+
+  if (match) {
+    newCards[c1].matched = true;
+    newCards[c2].matched = true;
+    state.scores[state.currentPlayer]++;
+  } else {
+    newCards[c1].flipped = false;
+    newCards[c2].flipped = false;
+    state.currentPlayer = (state.currentPlayer + 1) % totalPlayers;
+  }
+
+  await update(roomRef, {
+    cards: newCards,
+    currentPlayer: state.currentPlayer,
+    scores: state.scores,
+    flippedIndices: []
+  });
+}
 
     await update(roomRef, {
       cards: newCards,
