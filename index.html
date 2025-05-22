@@ -2,52 +2,28 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>4人用神経衰弱ゲーム</title>
+  <title>4人用神経衰弱</title>
   <style>
-    body {
-      font-family: sans-serif;
-      background-color: #f4f4f4;
-      text-align: center;
-    }
-    #roomDisplay {
-      margin-top: 10px;
-      font-size: 1.2em;
-      font-weight: bold;
-    }
-    #players, #turnInfo {
-      margin: 10px 0;
-    }
+    body { font-family: sans-serif; text-align: center; }
     #gameBoard {
       display: grid;
       grid-template-columns: repeat(5, 60px);
       gap: 10px;
       justify-content: center;
-      margin: 20px auto;
+      margin: 20px;
     }
     .card {
-      width: 60px;
-      height: 80px;
-      background-color: #ddd;
-      border: 1px solid #aaa;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.2em;
-      cursor: pointer;
-      user-select: none;
+      width: 60px; height: 80px;
+      background: #ccc;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; cursor: pointer;
     }
-    .flipped {
-      background-color: #fff;
-    }
-    .matched {
-      background-color: #8f8;
-      cursor: default;
-    }
+    .flipped { background: #fff; }
+    .matched { background: #8f8; cursor: default; }
   </style>
 </head>
 <body>
-  <h1>4人用神経衰弱ゲーム</h1>
+  <h1>4人用神経衰弱</h1>
   <div id="roomDisplay"></div>
   <div id="players"></div>
   <div id="turnInfo"></div>
@@ -55,11 +31,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-let lastAIsTurn = -1;
-let aiPlaying = false;
-
+    import { getDatabase, ref, set, update, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyA0D7fOnIvQFU3O29q6bb_6gj5tWN23N0s",
@@ -76,104 +48,66 @@ let aiPlaying = false;
     const db = getDatabase(app);
 
     let roomRef;
-    let localPlayerIndex;
-    let playerNames = [];
+    let localPlayerIndex = 0;
     const totalPlayers = 4;
-    const aiPlayers = [];
 
     async function startGame() {
-      const mode = prompt("新しくルームを作成 → 1\n既存ルームに参加 → 2");
+      const mode = prompt("ルーム作成: 1\nルーム参加: 2");
       let roomId;
 
       if (mode === "1") {
         roomId = "room_" + Math.random().toString(36).substring(2, 8);
         document.getElementById("roomDisplay").textContent = `ルーム名: ${roomId}`;
-        localPlayerIndex = parseInt(prompt("あなたのプレイヤー番号（0〜3）を入力"));
-        if (isNaN(localPlayerIndex) || localPlayerIndex < 0 || localPlayerIndex >= totalPlayers) localPlayerIndex = 0;
 
-        const enteredNames = [];
+        const playerNames = [];
         for (let i = 0; i < totalPlayers; i++) {
-          const name = prompt(`プレイヤー${i}の名前を入力（空でスキップ）:`);
-          if (name) {
-            enteredNames.push(name);
-          } else {
-            break;
-          }
+          const name = prompt(`プレイヤー${i}の名前を入力:`);
+          playerNames.push(name || `プレイヤー${i}`);
         }
 
-        for (let i = enteredNames.length; i < totalPlayers; i++) {
-          enteredNames[i] = `AI${i}`;
-          aiPlayers.push(i);
-        }
-
-        playerNames = enteredNames;
+        localPlayerIndex = parseInt(prompt("あなたのプレイヤー番号（0〜3）:")) || 0;
         roomRef = ref(db, `rooms/${roomId}`);
-        resetGame();
+        const numbers = [...Array(10).keys()].flatMap(n => [n, n]);
+        shuffle(numbers);
+        const cards = numbers.map(n => ({ num: n, flipped: false, matched: false }));
+
+        await set(roomRef, {
+          cards,
+          scores: Array(totalPlayers).fill(0),
+          flippedIndices: [],
+          currentPlayer: 0,
+          playerNames
+        });
 
       } else if (mode === "2") {
-        roomId = prompt("参加したいルームIDを入力してください（例: room_xxxxx）");
+        roomId = prompt("ルームIDを入力してください:");
         roomRef = ref(db, `rooms/${roomId}`);
         const snapshot = await get(roomRef);
         if (!snapshot.exists()) {
-          alert("ルームが見つかりません");
+          alert("ルームが存在しません");
           return;
         }
 
         const state = snapshot.val();
+        localPlayerIndex = parseInt(prompt("あなたのプレイヤー番号（0〜3）:")) || 0;
+        const newName = prompt(`あなたの名前（現在: ${state.playerNames[localPlayerIndex]}）:`) || state.playerNames[localPlayerIndex];
+        state.playerNames[localPlayerIndex] = newName;
+
+        await update(roomRef, { playerNames: state.playerNames });
         document.getElementById("roomDisplay").textContent = `参加中: ${roomId}`;
-        playerNames = state.playerNames || [];
-
-        for (let i = playerNames.length; i < totalPlayers; i++) {
-          playerNames[i] = `AI${i}`;
-          aiPlayers.push(i);
-        }
-
-        localPlayerIndex = parseInt(prompt("あなたのプレイヤー番号（0〜3）を入力"));
-        if (isNaN(localPlayerIndex) || localPlayerIndex < 0 || localPlayerIndex >= totalPlayers) localPlayerIndex = 0;
-      } else {
-        alert("1または2を選んでください");
-        return;
       }
 
-     onValue(roomRef, (snapshot) => {
-  const state = snapshot.val();
-  if (!state) return;
-
-  renderGame(state);
-
-  if (aiPlayers.includes(state.currentPlayer)) {
-    if (state.currentPlayer !== lastAIsTurn && !aiPlaying) {
-      lastAIsTurn = state.currentPlayer;
-      aiPlaying = true;
-      aiPlay(state).then(() => {
-        aiPlaying = false;
+      onValue(roomRef, (snapshot) => {
+        const state = snapshot.val();
+        if (state) renderGame(state);
       });
     }
-  } else {
-    lastAIsTurn = -1;
-    aiPlaying = false;
-  }
-});
 
     function shuffle(array) {
       for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [array[i], array[j]] = [array[j], array[i]];
       }
-    }
-
-    function resetGame() {
-      const numbers = [...Array(10).keys()].flatMap(n => [n, n]); // 10ペア = 20枚
-      shuffle(numbers);
-      const cards = numbers.map(num => ({ num, flipped: false, matched: false }));
-
-      set(roomRef, {
-        cards,
-        currentPlayer: 0,
-        scores: Array(totalPlayers).fill(0),
-        flippedIndices: [],
-        playerNames
-      });
     }
 
     function renderGame(state) {
@@ -185,44 +119,40 @@ let aiPlaying = false;
       state.cards.forEach((card, index) => {
         const div = document.createElement("div");
         div.className = "card";
+        if (card.flipped) div.classList.add("flipped");
         if (card.matched) div.classList.add("matched");
-        else if (card.flipped) div.classList.add("flipped");
-
         div.textContent = (card.flipped || card.matched) ? card.num : "";
         div.onclick = () => onCardClick(index, state);
         gameBoard.appendChild(div);
       });
 
       playersDiv.innerHTML = "";
-      for (let i = 0; i < totalPlayers; i++) {
-        const name = state.playerNames?.[i] || `プレイヤー${i}`;
-        const p = document.createElement("div");
-        p.textContent = `${name}: ${state.scores[i]}点` + (i === state.currentPlayer ? " ←" : "");
-        playersDiv.appendChild(p);
-      }
+      state.playerNames.forEach((name, i) => {
+        playersDiv.innerHTML += `<div>${name}: ${state.scores[i]}点${i === state.currentPlayer ? " ←" : ""}</div>`;
+      });
 
-      turnInfo.textContent = `現在のターン: ${state.playerNames?.[state.currentPlayer]}`;
+      turnInfo.textContent = `現在のターン: ${state.playerNames[state.currentPlayer]}`;
     }
 
     function onCardClick(index, state) {
       if (state.currentPlayer !== localPlayerIndex) return;
       if (state.cards[index].flipped || state.cards[index].matched) return;
 
-      const flipped = Array.isArray(state.flippedIndices) ? state.flippedIndices : [];
+      const flipped = [...state.flippedIndices];
       if (flipped.length >= 2) return;
 
       const newCards = [...state.cards];
-      const newFlipped = [...flipped, index];
       newCards[index].flipped = true;
+      flipped.push(index);
 
       update(roomRef, {
         cards: newCards,
-        flippedIndices: newFlipped
+        flippedIndices: flipped
       });
 
-      if (newFlipped.length === 2) {
+      if (flipped.length === 2) {
         setTimeout(() => {
-          const [i1, i2] = newFlipped;
+          const [i1, i2] = flipped;
           const match = newCards[i1].num === newCards[i2].num;
 
           if (match) {
@@ -244,56 +174,6 @@ let aiPlaying = false;
         }, 1000);
       }
     }
-      
-async function aiPlay(state) {
-  const candidates = state.cards
-    .map((c, i) => (!c.flipped && !c.matched ? i : null))
-    .filter(i => i !== null);
-  if (candidates.length < 2) return;
-
-  shuffle(candidates);
-  const [c1, c2] = candidates;
-
-  const newCards = [...state.cards];
-  newCards[c1].flipped = true;
-  newCards[c2].flipped = true;
-
-  await update(roomRef, {
-    cards: newCards,
-    flippedIndices: [c1, c2]
-  });
-
-  // 1秒待つ
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  const match = newCards[c1].num === newCards[c2].num;
-
-  if (match) {
-    newCards[c1].matched = true;
-    newCards[c2].matched = true;
-    state.scores[state.currentPlayer]++;
-  } else {
-    newCards[c1].flipped = false;
-    newCards[c2].flipped = false;
-    state.currentPlayer = (state.currentPlayer + 1) % totalPlayers;
-  }
-
-  await update(roomRef, {
-    cards: newCards,
-    currentPlayer: state.currentPlayer,
-    scores: state.scores,
-    flippedIndices: []
-  });
-}
-
-    await update(roomRef, {
-      cards: newCards,
-      currentPlayer: state.currentPlayer,
-      scores: state.scores,
-      flippedIndices: []
-    });
-  } 1000;
-
 
     startGame();
   </script>
