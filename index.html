@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>神経衰弱 with AI & 名前入力</title>
+  <title>神経衰弱 - ランダムルーム</title>
   <style>
     body { font-family: sans-serif; text-align: center; }
     .board {
@@ -27,7 +27,8 @@
   </style>
 </head>
 <body>
-  <h1>神経衰弱（最大4人 名前 & AI対応）</h1>
+  <h1>神経衰弱（ランダムルーム & AI & 名前付き）</h1>
+  <div id="roomDisplay"></div>
   <div id="players"></div>
   <div id="turnInfo"></div>
   <div id="gameBoard" class="board"></div>
@@ -36,7 +37,6 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyA0D7fOnIvQFU3O29q6bb_6gj5tWN23N0s",
@@ -51,8 +51,15 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const analytics = getAnalytics(app);
-    const gameRef = ref(db, "game");
+
+    // ランダムルームID生成
+    function generateRoomId() {
+      return 'room_' + Math.random().toString(36).substring(2, 8);
+    }
+
+    const roomId = generateRoomId();
+    const roomRef = ref(db, `rooms/${roomId}`);
+    document.getElementById("roomDisplay").textContent = `ルーム名: ${roomId}（共有して他の人に知らせよう）`;
 
     const gameBoard = document.getElementById("gameBoard");
     const playersDiv = document.getElementById("players");
@@ -91,7 +98,7 @@
       shuffle(numbers);
       const cards = numbers.map(num => ({ num, flipped: false, matched: false }));
 
-      set(gameRef, {
+      set(roomRef, {
         cards,
         currentPlayer: 0,
         scores: [0, 0, 0, 0],
@@ -135,7 +142,7 @@
       const newFlipped = [...state.flippedIndices, index];
       newCards[index].flipped = true;
 
-      update(gameRef, {
+      update(roomRef, {
         cards: newCards,
         flippedIndices: newFlipped
       });
@@ -155,7 +162,7 @@
             state.currentPlayer = (state.currentPlayer + 1) % totalPlayers;
           }
 
-          update(gameRef, {
+          update(roomRef, {
             cards: newCards,
             currentPlayer: state.currentPlayer,
             scores: state.scores,
@@ -183,7 +190,6 @@
       });
 
       let choice1, choice2;
-
       if (knownPairs.size > 0) {
         const [_, [i1, i2]] = knownPairs.entries().next().value;
         choice1 = i1;
@@ -198,7 +204,7 @@
       setTimeout(() => handleCardClick(choice2, state), 1500);
     }
 
-    onValue(gameRef, (snapshot) => {
+    onValue(roomRef, (snapshot) => {
       const state = snapshot.val();
       if (state) {
         renderGame(state);
