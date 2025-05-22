@@ -57,6 +57,10 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, update, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
+　　let lastAIsTurn = -1;
+　　let aiPlaying = false;
+
+
     const firebaseConfig = {
       apiKey: "AIzaSyA0D7fOnIvQFU3O29q6bb_6gj5tWN23N0s",
       authDomain: "memory-game-10e98.firebaseapp.com",
@@ -131,14 +135,25 @@
         return;
       }
 
-      onValue(roomRef, (snapshot) => {
-        const state = snapshot.val();
-        if (state) {
-          renderGame(state);
-          if (aiPlayers.includes(state.currentPlayer)) aiPlay(state);
-        }
+     onValue(roomRef, (snapshot) => {
+  const state = snapshot.val();
+  if (!state) return;
+
+  renderGame(state);
+
+  if (aiPlayers.includes(state.currentPlayer)) {
+    if (state.currentPlayer !== lastAIsTurn && !aiPlaying) {
+      lastAIsTurn = state.currentPlayer;
+      aiPlaying = true;
+      aiPlay(state).then(() => {
+        aiPlaying = false;
       });
     }
+  } else {
+    lastAIsTurn = -1;
+    aiPlaying = false;
+  }
+});
 
     function shuffle(array) {
       for (let i = array.length - 1; i > 0; i--) {
